@@ -1,5 +1,6 @@
 const express = require('express')
 const axios = require('axios')
+const axiosRetry = require('axios-retry');
 const bodyParser = require('body-parser')
 
 const app = express()
@@ -27,6 +28,8 @@ app.get('/articles', async (req, res) => {
 
             // Fetch and parse article content using the Mercury API
             const clutterFreeArticles = await Promise.all(articleUrls.map(url => parseArticleContent(url)))
+
+            console.log('Clutter free articles:', clutterFreeArticles)
 
             // Send clutter-free articles in the response
             res.json(clutterFreeArticles)
@@ -56,21 +59,37 @@ app.post('/feeds', (req, res) => {
     }
 });
 
-// Function to fetch and parse article content using the Mercury API
-async function parseArticleContent(url) {
-    try {
-      const mercuryApiUrl = 'https://uptime-mercury-api.azurewebsites.net/webparser';
-      
-      // Make a POST request to the Mercury API with the article URL
-      const response = await axios.post(mercuryApiUrl, { url });
+/*
+axiosRetry(axios, {
+    retries: 3, // Number of retries
+    retryDelay: axiosRetry.exponentialDelay, // Exponential back-off delay between retries
+    retryCondition: (error) => {
+      // Retry on timeout errors
+      return axiosRetry.isNetworkOrIdempotentRequestError(error) || error.code === 'ESOCKETTIMEDOUT';
+    }
+});
+*/
 
-      console.log('Mercury API response:', response);
-      
-      // Return the parsed article content
-      return response.data;
+// Function to fetch and parse article content using the Mercury API
+const parseArticleContent = async (url) => {
+    try {
+        const mercuryApiUrl = 'https://uptime-mercury-api.azurewebsites.net/webparser';
+        
+        // Make a POST request to the Mercury API with the article URL
+        const response = await axios.post(mercuryApiUrl, { url });
+
+        console.log('Mercury API response:', response.data);
+
+        // Check if the response is a 404 error
+        if (response.status !== 200) {
+            console.log(`Error fetching article at ${url}: ${response.statusText}`);
+            return null; // or handle as needed
+        }
+        // Return the parsed article content
+        return response.data;
     } catch (error) {
-      console.error('Error parsing article content:', error);
-      throw new Error('Error parsing article content');
+        console.error('Error parsing article content:', error);
+        throw new Error('Error parsing article content');
     }
 }
 
