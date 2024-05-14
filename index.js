@@ -13,16 +13,16 @@ app.get('/articles', async (req, res) => {
     try {
         const rssFeedUrl = 'https://flipboard.com/@raimoseero/feed-nii8kd0sz.rss'
         const response = await axios.get(rssFeedUrl)
-
+        const xmlData = response.data;
+        
         // Parse the XML response
-        const xmlString = response.data
         const parser = require('xml2js').parseString
-        parser(xmlString, async (err, result) => {
+        parser(xmlData, (err, result) => {
             if (err) {
                 console.error('Error parsing XML:', err)
                 throw new Error('Error parsing XML')
-            }
-
+            } else {
+            /*
             // Extract article URLs from the parsed XML
             const articleUrls = result.rss.channel[0].item.map(item => item.link[0])
 
@@ -30,13 +30,16 @@ app.get('/articles', async (req, res) => {
             const clutterFreeArticles = await Promise.all(articleUrls.map(url => parseArticleContent(url)))
 
             console.log('Clutter free articles:', clutterFreeArticles)
+            */
 
+            console.dir(result, { depth: null });
             // Send clutter-free articles in the response
-            res.json(clutterFreeArticles)
+            res.json(result)
+            }
         })
     } catch (error) {
-        console.error('Error fetching articles:', error)
-        res.status(500).json({ error: 'Internal Server Error' })
+        console.error('Error fetching RSS feed:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
     }
 
 })
@@ -71,6 +74,9 @@ axiosRetry(axios, {
 */
 
 // Function to fetch and parse article content using the Mercury API
+
+
+/*
 const parseArticleContent = async (url) => {
     try {
         const mercuryApiUrl = 'https://uptime-mercury-api.azurewebsites.net/webparser';
@@ -92,6 +98,7 @@ const parseArticleContent = async (url) => {
         throw new Error('Error parsing article content');
     }
 }
+*/
 
 app.get('/', (req, res) => {
     res.send('Hello, Lolo v5 Backend!')
