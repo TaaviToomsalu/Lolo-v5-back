@@ -1,125 +1,125 @@
-const express = require('express')
-const axios = require('axios')
-const axiosRetry = require('axios-retry');
-const bodyParser = require('body-parser')
+const express = require('express');
+const axios = require('axios');
+const bodyParser = require('body-parser');
+const { parseStringPromise } = require('xml2js');
 
-const app = express()
-const port = 5001
+const app = express();
+const port = 5001;
 
-app.use(bodyParser.json())
+app.use(bodyParser.json());
 
-//Endpoint to fetch articles from the provided RSS feed
+const defaultFeed = 'https://flipboard.com/@raimoseero/feed-nii8kd0sz.rss';
+let customFeeds = [];
+
+// Endpoint to fetch articles from both default and custom RSS feeds
 app.get('/articles', async (req, res) => {
     try {
-        const rssFeedUrl = 'https://flipboard.com/@raimoseero/feed-nii8kd0sz.rss'
-        const response = await axios.get(rssFeedUrl)
-        const xmlData = response.data;
-        
-        // Parse the XML response
-        const parser = require('xml2js').parseString
-        parser(xmlData, async (err, result) => {
-            if (err) {
-                console.error('Error parsing XML:', err)
-                throw new Error('Error parsing XML')
-            } else {
-                // Modify the JSON structure here
-                const modifiedResult = result.rss.channel[0].item.map(item => {
-                    const categories = item.category.length > 0 ? item.category.map(cat => cat._) : [];
-                    return {
-                        title: item.title[0],
-                        link: item.link[0],
-                        pubDate: item.pubDate[0],
-                        description: item.description[0],
-                        author: item.author ? item.author[0] : 'Unknown',
-                        mediaContent: item['media:content'] ? item['media:content'][0].$ : null,
-                        categories: categories
-                    };
-                });
+        const allFeedUrls = [defaultFeed, ...customFeeds];
+        const promises = allFeedUrls.map(feedUrl => axios.get(feedUrl));
+        const responses = await Promise.all(promises);
 
-                // Send the modified JSON in the response
-                console.dir(modifiedResult, { depth: null, colors: true });
-                res.json(modifiedResult);
-            }
-        })
+        responses.forEach((response, index) => {
+            const feedUrl = allFeedUrls[index];
+            console.log(`Data received from feed: ${feedUrl}`);
+            //console.log(response.data); // Log initial data
+        });
+
+        const articlePromises = responses.map(async (response, index) => {
+            const xmlData = response.data;
+            const result = await parseStringPromise(xmlData);
+            const feedUrl = allFeedUrls[index];
+        
+            return result.rss.channel[0].item.map(item => {
+                const categories = item.category ? item.category.map(cat => cat._) : [];
+                let author = 'Unknown';
+                
+                if (item.author) {
+                    author = item.author[0];
+                } else if (item['dc:creator']) {
+                    author = item['dc:creator'][0];
+                } else if (item['creator']) {
+                    author = item['creator'][0];
+                }
+                
+                return {
+                    title: item.title[0],
+                    link: item.link[0],
+                    pubDate: new Date(item.pubDate[0]), // Convert to Date object
+                    description: item.description[0],
+                    author: author,
+                    mediaContent: item['media:content'] ? item['media:content'][0].$ : null,
+                    categories: categories,
+                    feedUrl: feedUrl // Add feed URL to each article
+                };
+            });
+        });
+
+        const articles = await Promise.all(articlePromises);
+        const aggregatedArticles = articles.flat();
+
+        // Sort articles by publication date (newest first)
+        const sortedArticles = aggregatedArticles.sort((a, b) => b.pubDate - a.pubDate);
+
+        res.json(sortedArticles);
     } catch (error) {
-        console.error('Error fetching RSS feed:', error);
+        console.error('Error fetching articles:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
-})
+});
 
+// Endpoint to get custom feeds
+app.get('/feeds', (req, res) => {
+    res.json(customFeeds);
+});
 
 // Endpoint to add custom RSS feeds
 app.post('/feeds', (req, res) => {
     try {
         const { url } = req.body;
-        // Add the URL to the list of custom feeds
-        customFeeds.push(url);
-        console.log('Custom RSS feed added:', url);
-        res.json({ message: 'Custom RSS feed added successfully' });
+        if (!customFeeds.includes(url) && url !== defaultFeed) {
+            customFeeds.push(url);
+            console.log('Custom RSS feed added:', url);
+            res.json({ message: 'Custom RSS feed added successfully' });
+        } else {
+            res.status(400).json({ error: 'Feed URL already exists or is a default feed' });
+        }
     } catch (error) {
         console.error('Error adding custom RSS feed:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 });
 
-/*
-axiosRetry(axios, {
-    retries: 3, // Number of retries
-    retryDelay: axiosRetry.exponentialDelay, // Exponential back-off delay between retries
-    retryCondition: (error) => {
-      // Retry on timeout errors
-      return axiosRetry.isNetworkOrIdempotentRequestError(error) || error.code === 'ESOCKETTIMEDOUT';
+// Endpoint to delete custom RSS feeds
+app.delete('/feeds/:url', (req, res) => {
+    try {
+        const { url } = req.params;
+        const decodedUrl = decodeURIComponent(url);
+        if (customFeeds.includes(decodedUrl)) {
+            customFeeds = customFeeds.filter(feed => feed !== decodedUrl);
+            console.log('Custom RSS feed deleted:', decodedUrl);
+            res.json({ message: 'Custom RSS feed deleted successfully' });
+        } else {
+            res.status(404).json({ error: 'Feed URL not found in custom feeds' });
+        }
+    } catch (error) {
+        console.error('Error deleting custom RSS feed:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
     }
 });
-*/
-
-// Function to fetch and parse article content using the Mercury API
 
 
-/*
-const parseArticleContent = async (url) => {
+app.post('/fetch-article-content', async (req, res) => {
+    const { url } = req.body;
     try {
-        const mercuryApiUrl = 'https://uptime-mercury-api.azurewebsites.net/webparser';
-        
-        // Make a POST request to the Mercury API with the article URL
-        const response = await axios.post(mercuryApiUrl, { url });
-
-        console.log('Mercury API response:', response.data);
-
-        // Check if the response is a 404 error
-        if (response.status !== 200) {
-            console.log(`Error fetching article at ${url}: ${response.statusText}`);
-            return null; // or handle as needed
-        }
-        // Return the parsed article content
-        return response.data;
+        const response = await axios.post('https://uptime-mercury-api.azurewebsites.net/webparser', { url });
+        res.json(response.data);
     } catch (error) {
-        console.error('Error parsing article content:', error);
-        throw new Error('Error parsing article content');
+        console.error('Error fetching article content:', error);
+        res.status(500).send('Failed to fetch article content');
     }
-}
-*/
+});
 
-app.get('/', (req, res) => {
-    res.send('Hello, Lolo v5 Backend!')
-})
 
 app.listen(port, () => {
-    console.log(`Server is running on port ${port}`)
-})
-
-
-
-
-
-
-
-/*
-            // Extract article URLs from the parsed XML
-            const articleUrls = result.rss.channel[0].item.map(item => item.link[0])
-
-            // Fetch and parse article content using the Mercury API
-            const clutterFreeArticles = await Promise.all(articleUrls.map(url => parseArticleContent(url)))
-
-            console.log('Clutter free articles:', clutterFreeArticles)
-            */
+    console.log(`Server is running on port ${port}`);
+});
