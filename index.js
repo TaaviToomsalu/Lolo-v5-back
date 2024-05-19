@@ -2,13 +2,15 @@ const express = require('express');
 const axios = require('axios');
 const bodyParser = require('body-parser');
 const { parseStringPromise } = require('xml2js');
+const cors = require('cors');
 
 const app = express();
 const port = 5001;
 
+app.use(cors());
 app.use(bodyParser.json());
 
-// CORS middleware
+
 app.use(cors({
     origin: 'https://lolo-v5-front.onrender.com',
     allowedHeaders: ['Content-Type', 'Authorization'] // Include the allowed headers
