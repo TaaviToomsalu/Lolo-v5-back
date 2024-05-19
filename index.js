@@ -9,11 +9,10 @@ const port = 5001;
 app.use(bodyParser.json());
 
 // CORS middleware
-app.use(function(req, res, next) {
-    res.header("Access-Control-Allow-Origin", "http://your-react-app-domain.com");
-    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
-    next();
-});
+app.use(cors({
+    origin: 'https://lolo-v5-front.onrender.com',
+    allowedHeaders: ['Content-Type', 'Authorization'] // Include the allowed headers
+}));
 
 const defaultFeed = 'https://flipboard.com/@raimoseero/feed-nii8kd0sz.rss';
 let customFeeds = [];
