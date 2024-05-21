@@ -7,16 +7,13 @@ const cors = require('cors');
 const app = express();
 const port = 5001;
 
-app.use(cors());
-app.use(bodyParser.json());
-
-
 app.use(cors({
     origin: 'https://lolo-v5-front.onrender.com',
-    allowedHeaders: ['Content-Type', 'Authorization'] // Include the allowed headers
+    allowedHeaders: ['Content-Type', 'Authorization'] 
 }));
+app.use(bodyParser.json());
 
-const defaultFeed = 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml';
+const defaultFeed = 'https://flipboard.com/@raimoseero/feed-nii8kd0sz.rss';
 
 let customFeeds = [];
 
