@@ -16,7 +16,8 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization'] // Include the allowed headers
 }));
 
-const defaultFeed = 'https://flipboard.com/@raimoseero/feed-nii8kd0sz.rss';
+const defaultFeed = 'https://rss.nytimes.com/services/xml/rss/nyt/World.xml';
+
 let customFeeds = [];
 
 // Endpoint to fetch articles from both default and custom RSS feeds
